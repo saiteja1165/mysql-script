@@ -1,0 +1,892 @@
+---- Run this first in MySQL Workbench Query window
+
+CREATE DATABASE IF NOT EXISTS learning_portal
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
+USE learning_portal;
+
+
+-- ─── USERS ───────────────────────────────────────────────────────────────────
+CREATE TABLE users (
+    user_id      INT AUTO_INCREMENT PRIMARY KEY,
+    username     VARCHAR(50)  UNIQUE NOT NULL,
+    email        VARCHAR(120) UNIQUE NOT NULL,
+    password_hash VARCHAR(256) NOT NULL,
+    role         ENUM('student','instructor','admin') DEFAULT 'student',
+    full_name    VARCHAR(120),
+    profile_pic  TEXT,
+    bio          TEXT,
+    is_active    TINYINT(1) DEFAULT 1,
+    created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- ─── CATEGORIES ──────────────────────────────────────────────────────────────
+CREATE TABLE categories (
+    category_id  INT AUTO_INCREMENT PRIMARY KEY,
+    name         VARCHAR(80) UNIQUE NOT NULL,
+    slug         VARCHAR(80) UNIQUE NOT NULL,
+    description  TEXT,
+    icon         VARCHAR(50)
+);
+
+
+
+
+
+
+
+-- ─── COURSES ─────────────────────────────────────────────────────────────────
+CREATE TABLE courses (
+    course_id     INT AUTO_INCREMENT PRIMARY KEY,
+    instructor_id INT NOT NULL,
+    category_id   INT NOT NULL,
+    title         VARCHAR(200) NOT NULL,
+    description   TEXT,
+    price         DECIMAL(8,2) DEFAULT 0.00,
+    thumbnail     TEXT,
+    level         ENUM('beginner','intermediate','advanced') DEFAULT 'beginner',
+    status        ENUM('draft','published','archived') DEFAULT 'draft',
+    language      VARCHAR(30) DEFAULT 'English',
+    rating        FLOAT DEFAULT 0.0,
+    total_students INT DEFAULT 0,
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (instructor_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (category_id)   REFERENCES categories(category_id)
+);
+
+-- ─── LESSONS ─────────────────────────────────────────────────────────────────
+CREATE TABLE lessons (
+    lesson_id    INT AUTO_INCREMENT PRIMARY KEY,
+    course_id    INT NOT NULL,
+    title        VARCHAR(200) NOT NULL,
+    content      LONGTEXT,
+    video_url    TEXT,
+    duration_min INT DEFAULT 0,
+    order_no     INT NOT NULL DEFAULT 1,
+    is_free      TINYINT(1) DEFAULT 0,
+    created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE
+);
+
+-- ─── ENROLLMENTS ─────────────────────────────────────────────────────────────
+CREATE TABLE enrollments (
+    enrollment_id  INT AUTO_INCREMENT PRIMARY KEY,
+    user_id        INT NOT NULL,
+    course_id      INT NOT NULL,
+    amount_paid    DECIMAL(8,2) DEFAULT 0.00,
+    payment_status ENUM('free','paid','refunded') DEFAULT 'free',
+    payment_id     VARCHAR(100),
+    enrolled_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    completed_at   DATETIME,
+    UNIQUE KEY uq_enroll (user_id, course_id),
+    FOREIGN KEY (user_id)   REFERENCES users(user_id)   ON DELETE CASCADE,
+    FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE
+);
+
+-- ─── PROGRESS ────────────────────────────────────────────────────────────────
+CREATE TABLE progress (
+    progress_id   INT AUTO_INCREMENT PRIMARY KEY,
+    enrollment_id INT NOT NULL,
+    lesson_id     INT NOT NULL,
+    is_completed  TINYINT(1) DEFAULT 0,
+    completed_at  DATETIME,
+    UNIQUE KEY uq_progress (enrollment_id, lesson_id),
+    FOREIGN KEY (enrollment_id) REFERENCES enrollments(enrollment_id) ON DELETE CASCADE,
+    FOREIGN KEY (lesson_id)     REFERENCES lessons(lesson_id)         ON DELETE CASCADE
+);
+
+-- ─── QUIZZES ─────────────────────────────────────────────────────────────────
+CREATE TABLE quizzes (
+    quiz_id     INT AUTO_INCREMENT PRIMARY KEY,
+    course_id   INT NOT NULL,
+    title       VARCHAR(200) NOT NULL,
+    description TEXT,
+    pass_score  INT DEFAULT 70,
+    time_limit  INT DEFAULT 0,
+    FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE
+);
+
+CREATE TABLE quiz_questions (
+    question_id   INT AUTO_INCREMENT PRIMARY KEY,
+    quiz_id       INT NOT NULL,
+    question_text TEXT NOT NULL,
+    question_type ENUM('mcq','true_false','short') DEFAULT 'mcq',
+    marks         INT DEFAULT 1,
+    order_no      INT DEFAULT 1,
+    FOREIGN KEY (quiz_id) REFERENCES quizzes(quiz_id) ON DELETE CASCADE
+);
+
+CREATE TABLE quiz_options (
+    option_id    INT AUTO_INCREMENT PRIMARY KEY,
+    question_id  INT NOT NULL,
+    option_text  VARCHAR(500) NOT NULL,
+    is_correct   TINYINT(1) DEFAULT 0,
+    FOREIGN KEY (question_id) REFERENCES quiz_questions(question_id) ON DELETE CASCADE
+);
+
+CREATE TABLE quiz_attempts (
+    attempt_id    INT AUTO_INCREMENT PRIMARY KEY,
+    quiz_id       INT NOT NULL,
+    user_id       INT NOT NULL,
+    score         INT DEFAULT 0,
+    total_marks   INT DEFAULT 0,
+    passed        TINYINT(1) DEFAULT 0,
+    attempted_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (quiz_id)  REFERENCES quizzes(quiz_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id)  REFERENCES users(user_id)   ON DELETE CASCADE
+);
+
+-- ─── REVIEWS ─────────────────────────────────────────────────────────────────
+CREATE TABLE reviews (
+    review_id  INT AUTO_INCREMENT PRIMARY KEY,
+    user_id    INT NOT NULL,
+    course_id  INT NOT NULL,
+    rating     INT CHECK (rating BETWEEN 1 AND 5),
+    comment    TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_review (user_id, course_id),
+    FOREIGN KEY (user_id)   REFERENCES users(user_id)     ON DELETE CASCADE,
+    FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE
+);
+
+-- ─── CERTIFICATES ────────────────────────────────────────────────────────────
+CREATE TABLE certificates (
+    cert_id     INT AUTO_INCREMENT PRIMARY KEY,
+    user_id     INT NOT NULL,
+    course_id   INT NOT NULL,
+    cert_number VARCHAR(50) UNIQUE NOT NULL,
+    issued_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id)   REFERENCES users(user_id)     ON DELETE CASCADE,
+    FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE
+);
+
+
+
+CREATE TABLE ERROR_LOG(MODULE_NAME VARCHAR2 (15),ERROR_DATE DATE,ERROR_NO VARCHAR2 (10),ERROR_MSG VARCHAR2 (525),
+ROW_NUMBER NUMBER) TABLESPACE TABLESPACE_NAME;
+
+
+
+---- sequences
+CREATE SEQUENCE seq_users START WITH 1 INCREMENT BY 1;
+CREATE SEQUENCE seq_courses START WITH 101 INCREMENT BY 1;
+CREATE SEQUENCE seq_enrollments START WITH 1001 INCREMENT BY 1;
+CREATE SEQUENCE seq_payments START WITH 5001 INCREMENT BY 1;
+CREATE SEQUENCE seq_quiz START WITH 201 INCREMENT BY 1;
+CREATE SEQUENCE seq_results START WITH 3001 INCREMENT BY 1;
+
+
+
+
+-- Categories
+INSERT INTO categories (name, slug, description, icon) VALUES();
+
+-- Users (passwords are bcrypt hashed — plain: admin123, teacher123, student123)
+INSERT INTO users (username, email, password_hash, role, full_name) VALUES
+()
+
+-- Courses
+INSERT INTO courses (instructor_id, category_id, title, description, price, level, status) VALUES();
+
+-- Lessons for Cybersecurity course (course_id = 1)
+INSERT INTO lessons (course_id, title, duration_min, order_no, is_free) VALUES();
+-- Enrollments
+INSERT INTO enrollments (user_id, course_id, amount_paid, payment_status) VALUES();
+
+
+-- Reviews
+INSERT INTO reviews (user_id, course_id, rating, comment) VALUES
+();
+
+
+
+
+
+----stored procedures:
+---procedures for the  registration
+
+
+CREATE OR REPLACE PROCEDURE SP_ERROR (P_PROGRAM VARCHAR2,
+P_ERROR_NO VARCHAR2,P_ERROR_MSG VARCHAR2)
+IS
+PRAGMA AUTONOMOUS_TRANSACTION;
+BEGIN
+INSERT INTO ERROR_LOG VALUES (P_MODULE, SYSDATE,P_ERROR_NO, P_ERROR_MSG);
+COMMIT;
+END;
+
+
+CREATE OR REPLACE PROCEDURE pr_register_user (
+    p_full_name   IN users.full_name%TYPE,
+    p_email       IN users.email%TYPE,
+    p_phone       IN users.phone%TYPE,
+    p_user_type   IN users.user_type%TYPE
+)
+IS
+    v_count NUMBER;
+BEGIN
+    SELECT COUNT(*)
+    INTO v_count
+    FROM users
+    WHERE email = p_email AND phone= p_phone;
+
+    IF v_count > 0 THEN
+        RAISE_APPLICATION_ERROR(-20001, 'Email/Phone_no already exists');
+    END IF;
+
+    INSERT INTO users (user_id, full_name, email, user_type, created_at)
+    VALUES (seq_users.NEXTVAL, p_full_name, p_email, UPPER(p_user_type), SYSDATE);
+    COMMIT;
+
+    DBMS_OUTPUT.PUT_LINE('User registered successfully');
+EXCEPTION
+WHEN OTHERS THEN
+SP_ERROR_LOG ('pr_register_user',SQLCODE,SQLERRM,
+SUBSTR (DBMS_UTILITY.format_error_backtrace,-5));
+RAISE_APPLICATION_ERROR(-20400,SQLERRM);
+END;
+END;
+/
+
+
+CREATE TABLE BULK_EXP_ERRORS
+(
+MODULE_NAME VARCHAR2 (15),
+ERROR_DATE DATE,
+ERROR_NO VARCHAR2 (10),
+ERROR_MSG VARCHAR2 (512),
+ROW_NUMBER NUMBER
+)
+TABLESPACE TABLESPACE_NAME
+
+CREATE OR REPLACE PROCEDURE SP_BULK_ERROR (P_MODULE VARCHAR2,
+P_ERROR_NO VARCHAR2,P_ERROR_MSG VARCHAR2, P_ROW_NO NUMBER)
+AS
+PRAGMA AUTONOMOUS_TRANSACTION;
+BEGIN
+INSERT INTO BULK_EXP_ERRORS VALUES (P_MODULE, SYSDATE,
+P_ERROR_NO, P_ERROR_MSG, P_ROW_NO);
+COMMIT;
+END;
+/
+
+BEGIN
+    pr_register_user('Ravi Kumar', 'ravi@gmail.com', 'STUDENT');
+END;
+/
+
+---  procedure for the  course
+
+CREATE OR REPLACE PROCEDURE pr_create_course (
+    p_course_name    IN courses.course_name%TYPE,
+    p_instructor_id  IN courses.instructor_id%TYPE,
+    p_price          IN courses.price%TYPE,
+    p_max_students   IN courses.max_students%TYPE
+)
+IS
+    v_count NUMBER;
+BEGIN
+    SELECT COUNT(*)
+    INTO v_count
+    FROM users
+    WHERE user_id = p_instructor_id
+      AND user_type = 'INSTRUCTOR';
+
+    IF v_count = 0 THEN
+        RAISE_APPLICATION_ERROR(-20002, 'Invalid instructor');
+    END IF;
+
+    INSERT INTO courses (
+        course_id, course_name, instructor_id, price,
+        max_students, enrolled_count, course_status, created_at
+    )
+    VALUES (
+        seq_courses.NEXTVAL, p_course_name, p_instructor_id, p_price,
+        p_max_students, 0, 'ACTIVE', SYSDATE
+    );
+COMMIT;
+
+    DBMS_OUTPUT.PUT_LINE('Course created successfully');
+EXCEPTION
+WHEN OTHERS THEN
+SP_ERROR_LOG ('pr_create_course',SQLCODE,SQLERRM,
+SUBSTR (DBMS_UTILITY.format_error_backtrace,-5));
+RAISE_APPLICATION_ERROR(-20400,SQLERRM);
+END;
+END;
+/
+---
+sql
+BEGIN
+    pr_create_course('Oracle PL/SQL Masterclass', 2, 2999, 50);
+END;
+/
+
+
+----
+
+
+CREATE OR REPLACE PROCEDURE pr_enroll_student (
+    p_user_id    IN enrollments.user_id%TYPE,
+    p_course_id  IN enrollments.course_id%TYPE
+)
+IS
+    v_user_count       NUMBER;
+    v_course_count     NUMBER;
+    v_dup_count        NUMBER;
+    v_max_students     courses.max_students%TYPE;
+    v_enrolled_count   courses.enrolled_count%TYPE;
+BEGIN
+    SELECT COUNT(*)
+    INTO v_user_count
+    FROM users
+    WHERE user_id = p_user_id
+      AND user_type = 'STUDENT';
+
+    IF v_user_count = 0 THEN
+        RAISE_APPLICATION_ERROR(-20003, 'Student not found');
+    END IF;
+
+    SELECT COUNT(*)
+    INTO v_course_count
+    FROM courses
+    WHERE course_id = p_course_id
+      AND course_status = 'ACTIVE';
+
+    IF v_course_count = 0 THEN
+        RAISE_APPLICATION_ERROR(-20004, 'Course not available');
+    END IF;
+
+    SELECT COUNT(*)
+    INTO v_dup_count
+    FROM enrollments
+    WHERE user_id = p_user_id
+      AND course_id = p_course_id;
+
+    IF v_dup_count > 0 THEN
+        RAISE_APPLICATION_ERROR(-20005, 'Student already enrolled');
+    END IF;
+
+    SELECT max_students, enrolled_count
+    INTO v_max_students, v_enrolled_count
+    FROM courses
+    WHERE course_id = p_course_id;
+
+    IF v_enrolled_count >= v_max_students THEN
+        RAISE_APPLICATION_ERROR(-20006, 'Course is full');
+    END IF;
+
+    INSERT INTO enrollments (
+        enrollment_id, user_id, course_id, enrollment_date,
+        completion_status, progress_percent, payment_status
+    )
+    VALUES (
+        seq_enrollments.NEXTVAL, p_user_id, p_course_id, SYSDATE,
+        'IN_PROGRESS', 0, 'PENDING'
+    );
+COMMIT;
+
+    DBMS_OUTPUT.PUT_LINE('Enrollment successful');
+
+EXCEPTION
+WHEN OTHERS THEN
+SP_ERROR_LOG ('pr_enroll_student',SQLCODE,SQLERRM,
+SUBSTR (DBMS_UTILITY.format_error_backtrace,-5));
+RAISE_APPLICATION_ERROR(-20400,SQLERRM);
+END;
+
+END;
+/
+----
+sql
+
+BEGIN
+    pr_enroll_student(1, 101);
+END;
+/
+----
+---procedure for the  payments
+
+CREATE OR REPLACE PROCEDURE pr_record_payment (
+    p_user_id         IN payments.user_id%TYPE,
+    p_course_id       IN payments.course_id%TYPE,
+    p_amount          IN payments.amount%TYPE,
+    p_payment_method  IN payments.payment_method%TYPE
+)
+IS
+BEGIN
+    INSERT INTO payments (
+        payment_id, user_id, course_id, amount, payment_date, payment_method
+    )
+    VALUES (
+        seq_payments.NEXTVAL, p_user_id, p_course_id, p_amount, SYSDATE, p_payment_method
+    );
+
+    UPDATE enrollments
+    SET payment_status = 'PAID'
+    WHERE user_id = p_user_id
+      AND course_id = p_course_id;
+
+    DBMS_OUTPUT.PUT_LINE('Payment recorded successfully');
+
+EXCEPTION
+WHEN OTHERS THEN
+SP_ERROR_LOG ('pr_record_payment',SQLCODE,SQLERRM,
+SUBSTR (DBMS_UTILITY.format_error_backtrace,-5));
+RAISE_APPLICATION_ERROR(-20400,SQLERRM);
+END;
+
+END;
+/
+
+----
+sql
+
+BEGIN
+    pr_record_payment(1, 101, 2999, 'UPI');
+END;
+/
+
+---
+
+
+---- procedure for  progress of the  register
+
+
+CREATE OR REPLACE PROCEDURE pr_update_progress (
+    p_user_id           IN enrollments.user_id%TYPE,
+    p_course_id         IN enrollments.course_id%TYPE,
+    p_progress_percent  IN NUMBER
+)
+IS
+BEGIN
+    UPDATE enrollments
+    SET progress_percent = p_progress_percent,
+        completion_status = CASE
+                                WHEN p_progress_percent >= 100 THEN 'COMPLETED'
+                                ELSE 'IN_PROGRESS'
+                            END
+    WHERE user_id = p_user_id
+      AND course_id = p_course_id;
+
+    DBMS_OUTPUT.PUT_LINE('Progress updated');
+EXCEPTION
+WHEN OTHERS THEN
+SP_ERROR_LOG ('pr_update_progress',SQLCODE,SQLERRM,
+SUBSTR (DBMS_UTILITY.format_error_backtrace,-5));
+RAISE_APPLICATION_ERROR(-20400,SQLERRM);
+END;
+
+END;
+/
+
+
+
+---
+sql
+
+BEGIN
+    pr_update_progress(1, 101, 100);
+END;
+/
+
+----
+
+
+
+----- stored function
+
+--- function  for  the  course  for frontend
+
+CREATE OR REPLACE FUNCTION fn_get_course_fee (
+    p_course_id IN courses.course_id%TYPE
+)
+RETURN NUMBER
+IS
+    v_fee courses.price%TYPE;
+BEGIN
+    SELECT price
+    INTO v_fee
+    FROM courses
+    WHERE course_id = p_course_id;
+
+    RETURN v_fee;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RETURN 0;
+WHEN OTHERS THEN
+SP_ERROR_LOG ('fn_get_course_fee',SQLCODE,SQLERRM,
+SUBSTR (DBMS_UTILITY.format_error_backtrace,-5));
+RAISE_APPLICATION_ERROR(-20400,SQLERRM);
+END;
+
+END;
+/
+
+--- 
+sql
+
+SELECT fn_get_course_fee(101) AS course_fee FROM dual;
+
+sql
+
+SELECT fn_is_already_enrolled(1, 101) AS enrolled_flag FROM dual;
+
+--- function for the  progress
+
+CREATE OR REPLACE FUNCTION fn_get_progress (
+    p_user_id   IN NUMBER,
+    p_course_id IN NUMBER
+)
+RETURN NUMBER
+IS
+    v_progress NUMBER;
+BEGIN
+    SELECT progress_percent
+    INTO v_progress
+    FROM enrollments
+    WHERE user_id = p_user_id
+      AND course_id = p_course_id;
+
+    RETURN v_progress;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RETURN 0;
+WHEN OTHERS THEN
+SP_ERROR_LOG ('SP_COMM_CAL',SQLCODE,SQLERRM,
+SUBSTR (DBMS_UTILITY.format_error_backtrace,-5));
+RAISE_APPLICATION_ERROR(-20400,SQLERRM);
+END;
+
+END;
+/
+---
+
+sql
+SELECT fn_get_progress(1, 101) AS progress_percent FROM dual;
+---
+
+---function for certificate  eligibility
+
+CREATE OR REPLACE FUNCTION fn_certificate_eligible (
+    p_user_id   IN NUMBER,
+    p_course_id IN NUMBER
+)
+RETURN VARCHAR2
+IS
+    v_completion enrollments.completion_status%TYPE;
+    v_pass_count NUMBER;
+BEGIN
+    SELECT completion_status
+    INTO v_completion
+    FROM enrollments
+    WHERE user_id = p_user_id
+      AND course_id = p_course_id;
+
+    SELECT COUNT(*)
+    INTO v_pass_count
+    FROM results
+    WHERE user_id = p_user_id
+      AND course_id = p_course_id
+      AND result_status = 'PASS';
+
+    IF v_completion = 'COMPLETED' AND v_pass_count > 0 THEN
+        RETURN 'ELIGIBLE';
+    ELSE
+        RETURN 'NOT ELIGIBLE';
+    END IF;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RETURN 'NOT ELIGIBLE';
+WHEN OTHERS THEN
+SP_ERROR_LOG ('SP_COMM_CAL',SQLCODE,SQLERRM,
+SUBSTR (DBMS_UTILITY.format_error_backtrace,-5));
+RAISE_APPLICATION_ERROR(-20400,SQLERRM);
+END;
+
+END;
+/
+---
+sql
+
+SELECT fn_certificate_eligible(1, 101) AS certificate_status FROM dual;
+
+---
+
+
+---packages for  the  schema
+
+CREATE OR REPLACE PACKAGE pkg_lms AS
+    PROCEDURE register_user (
+        p_full_name   IN VARCHAR2,
+        p_email       IN VARCHAR2,
+        p_user_type   IN VARCHAR2
+    );
+
+    PROCEDURE enroll_student (
+        p_user_id     IN NUMBER,
+        p_course_id   IN NUMBER
+    );
+
+    FUNCTION get_course_fee (
+        p_course_id   IN NUMBER
+    ) RETURN NUMBER;
+
+    FUNCTION certificate_eligible (
+        p_user_id     IN NUMBER,
+        p_course_id   IN NUMBER
+    ) RETURN VARCHAR2;
+END pkg_lms;
+/
+
+
+CREATE OR REPLACE PACKAGE BODY pkg_lms AS
+
+    PROCEDURE register_user (
+        p_full_name   IN VARCHAR2,
+        p_email       IN VARCHAR2,
+        p_user_type   IN VARCHAR2
+    )
+    IS
+        v_count NUMBER;
+    BEGIN
+        SELECT COUNT(*)
+        INTO v_count
+        FROM users
+        WHERE email = p_email;
+
+        IF v_count > 0 THEN
+            RAISE_APPLICATION_ERROR(-20101, 'Email already exists');
+        END IF;
+
+        INSERT INTO users (user_id, full_name, email, user_type, created_at)
+        VALUES (seq_users.NEXTVAL, p_full_name, p_email, UPPER(p_user_type), SYSDATE);
+    END register_user;
+
+    PROCEDURE enroll_student (
+        p_user_id     IN NUMBER,
+        p_course_id   IN NUMBER
+    )
+    IS
+        v_dup_count NUMBER;
+    BEGIN
+        SELECT COUNT(*)
+        INTO v_dup_count
+        FROM enrollments
+        WHERE user_id = p_user_id
+          AND course_id = p_course_id;
+
+        IF v_dup_count > 0 THEN
+            RAISE_APPLICATION_ERROR(-20102, 'Already enrolled');
+        END IF;
+
+        INSERT INTO enrollments (
+            enrollment_id, user_id, course_id, enrollment_date,
+            completion_status, progress_percent, payment_status
+        )
+        VALUES (
+            seq_enrollments.NEXTVAL, p_user_id, p_course_id, SYSDATE,
+            'IN_PROGRESS', 0, 'PENDING'
+        );
+    END enroll_student;
+
+    FUNCTION get_course_fee (
+        p_course_id IN NUMBER
+    )
+    RETURN NUMBER
+    IS
+        v_fee NUMBER;
+    BEGIN
+        SELECT price INTO v_fee
+        FROM courses
+        WHERE course_id = p_course_id;
+
+        RETURN v_fee;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            RETURN 0;
+    END get_course_fee;
+
+    FUNCTION certificate_eligible (
+        p_user_id   IN NUMBER,
+        p_course_id IN NUMBER
+    )
+    RETURN VARCHAR2
+    IS
+        v_status VARCHAR2(20);
+    BEGIN
+        v_status := fn_certificate_eligible(p_user_id, p_course_id);
+        RETURN v_status;
+    END certificate_eligible;
+
+END pkg_lms;
+/
+
+
+
+---sql packages
+
+
+BEGIN
+    pkg_lms.register_user('Sneha Reddy', 'sneha@gmail.com', 'STUDENT');
+END;
+/
+
+BEGIN
+    pkg_lms.enroll_student(1, 101);
+END;
+/
+
+SELECT pkg_lms.get_course_fee(101) FROM dual;
+SELECT pkg_lms.certificate_eligible(1, 101) FROM dual;
+
+
+----- TRIGGER to maintain audit
+----- trigger for users
+
+
+CREATE OR REPLACE TRIGGER trg_users_bi
+BEFORE INSERT ON users
+FOR EACH ROW
+BEGIN
+    IF :NEW.user_id IS NULL THEN
+        :NEW.user_id := seq_users.NEXTVAL;
+    END IF;
+EXCEPTION
+WHEN OTHERS THEN
+SP_ERROR_LOG ('SP_COMM_CAL',SQLCODE,SQLERRM,
+SUBSTR (DBMS_UTILITY.format_error_backtrace,-5));
+RAISE_APPLICATION_ERROR(-20400,SQLERRM);
+END;
+
+END;
+/
+
+---- trigger for  duplicate enroll
+CREATE OR REPLACE TRIGGER trg_prevent_duplicate_enroll
+BEFORE INSERT ON enrollments
+FOR EACH ROW
+DECLARE
+    v_count NUMBER;
+BEGIN
+    SELECT COUNT(*)
+    INTO v_count
+    FROM enrollments
+    WHERE user_id = :NEW.user_id
+      AND course_id = :NEW.course_id;
+
+    IF v_count > 0 THEN
+        RAISE_APPLICATION_ERROR(-20201, 'Duplicate enrollment not allowed');
+    END IF;
+EXCEPTION
+WHEN OTHERS THEN
+SP_ERROR_LOG ('SP_COMM_CAL',SQLCODE,SQLERRM,
+SUBSTR (DBMS_UTILITY.format_error_backtrace,-5));
+RAISE_APPLICATION_ERROR(-20400,SQLERRM);
+END;
+
+END;
+/
+
+---- trigger for  course
+
+CREATE OR REPLACE TRIGGER trg_update_course_count
+AFTER INSERT ON enrollments
+FOR EACH ROW
+BEGIN
+    UPDATE courses
+    SET enrolled_count = NVL(enrolled_count,0) + 1
+    WHERE course_id = :NEW.course_id;
+EXCEPTION
+WHEN OTHERS THEN
+SP_ERROR_LOG ('SP_COMM_CAL',SQLCODE,SQLERRM,
+SUBSTR (DBMS_UTILITY.format_error_backtrace,-5));
+RAISE_APPLICATION_ERROR(-20400,SQLERRM);
+END;
+
+END;
+/
+
+-----trigger for result
+CREATE OR REPLACE TRIGGER trg_result_status
+BEFORE INSERT OR UPDATE ON results
+FOR EACH ROW
+DECLARE
+    v_pass_marks quiz.pass_marks%TYPE;
+BEGIN
+    SELECT pass_marks
+    INTO v_pass_marks
+    FROM quiz
+    WHERE quiz_id = :NEW.quiz_id;
+
+    IF :NEW.score >= v_pass_marks THEN
+        :NEW.result_status := 'PASS';
+    ELSE
+        :NEW.result_status := 'FAIL';
+    END IF;
+EXCEPTION
+WHEN OTHERS THEN
+SP_ERROR_LOG ('SP_COMM_CAL',SQLCODE,SQLERRM,
+SUBSTR (DBMS_UTILITY.format_error_backtrace,-5));
+RAISE_APPLICATION_ERROR(-20400,SQLERRM);
+END;
+
+END;
+/
+
+
+---
+sql
+
+
+-- 1) Add instructor
+BEGIN
+    pr_register_user('Anil Sharma', 'anil@lms.com', 'INSTRUCTOR');
+END;
+/
+
+-- 2) Add student
+BEGIN
+    pr_register_user('Meena Das', 'meena@lms.com', 'STUDENT');
+END;
+/
+
+-- 3) Create course
+BEGIN
+    pr_create_course('SQL for Beginners', 1, 1999, 30);
+END;
+/
+
+-- 4) Enroll student
+BEGIN
+    pr_enroll_student(2, 101);
+END;
+/
+
+-- 5) Record payment
+BEGIN
+    pr_record_payment(2, 101, 1999, 'CARD');
+END;
+/
+
+-- 6) Update progress
+BEGIN
+    pr_update_progress(2, 101, 100);
+END;
+/
+
+-- 7) Create quiz
+INSERT INTO quiz (quiz_id, course_id, quiz_name, total_marks, pass_marks)
+VALUES (seq_quiz.NEXTVAL, 101, 'SQL Basics Test', 100, 40);
+
+-- 8) Insert result
+INSERT INTO results (result_id, user_id, course_id, quiz_id, score)
+VALUES (seq_results.NEXTVAL, 2, 101, 201, 78);
+
+-- 9) Check certificate eligibility
+SELECT fn_certificate_eligible(2, 101) AS final_status FROM dual;
+----
+
